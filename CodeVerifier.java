@@ -1,55 +1,61 @@
-package oop.ex6.main;
 
-import com.sun.org.apache.xpath.internal.VariableStack;
+package oop.ex6.main;
 
 import java.util.ArrayList;
 import java.util.Stack;
+import java.util.regex.Matcher;
 
-import static oop.ex6.main.LineType.*
+import static oop.ex6.main.LineType.*;
 
 public class CodeVerifier {
 
 	ArrayList<Method> methodArray;
-	ArrayList<Line> mainLines;
 	ScopeVars globalVars;
+	Stack<ScopeVars> theStack;
 
 	CodeVerifier(ArrayList<Method> methodArray ){
 		globalVars = new ScopeVars();
 		this.methodArray = methodArray;
+
 	}
 
-	void validateMainLines() throws Exception{
+	void validateMainLines(ArrayList<Line> mainLines) throws Exception{
 
 		for (Line curLine : mainLines) {
 
 			LineType lineType = curLine.type();
+			verifyValues(curLine.varArray());
+
 			switch (lineType) {
 
-				case(INIT): {
-					verifyValues(curLine.varArray());
-					globalVarArray.add(curLine.varArray());
+				case(VAR_INIT): {
+					globalVars.add(curLine.varArray());
 					break;
 				}
 
-				case(ASSIGN): {
-					verifyValues(curLine.varArray());
-					globalVarArray.contains(curLine.varArray().get(0));
+				case(VAR_ASSIGN): {
+					globalVars.contains(curLine.varArray().get(0));
 					break;
 				}
 			}
-			throw exception;
+			throw Exception;
 		}
 	}
 
-	void validateMethod(Method method) throws Exception{
-		//
-		Stack<ScopeVars> variableStack = new Stack<>();
-		variableStack.push(globalVars);
-		ScopeVars localVars = new ScopeVars();
-		// No return before method ends.
-		if (lineArray.get(lineArray.size()-2).type() != RETURN) throw Exception();
+	private
 
-		for (Line curLine : method.lineArray()) {
+	void validateMethod(Method method) throws Exception {
+
+		theStack = new Stack<>();
+		theStack.push(globalVars);
+		ScopeVars localVars = new ScopeVars(method.myParams());
+
+		ArrayList<Line> lineArray = method.myLines();
+
+		// No return before method ends.
+		if (lineArray.get(lineArray.size() - 2).type() != RETURN) throw Exception();
+
+		for (Line curLine : lineArray) {
 
 			verifyValues(curLine.varArray());
 			LineType curLineType = curLine.type();
@@ -62,241 +68,77 @@ public class CodeVerifier {
 				}
 
 				case (VAR_ASSIGN): {
-					variableStack.push(localVars);
-					verifyAssign(variableStack, curLine.varArray().get(0));
-					localVars = variableStack.pop();
+					theStack.push(localVars);
+					verifyUse(curLine.varArray().get(0), true);
+					localVars = theStack.pop();
 					break;
 				}
 
 				case (BLOCK): {
-					variableStack.push(localVars);
-					if (curLine.varArray().get(0) != null) /// NOT ASSIGN HELPER
-						verifyUse(variableStack, curLine.varArray().get(0));
+					theStack.push(localVars);
+					for (Variable var : curLine.varArray())
+						verifyUse(var, false);
 					localVars = new ScopeVars();
 					break;
 				}
 
 				case (CLOSE): {
-					localVars = variableStack.pop();
+					localVars = theStack.pop();
 					break;
-					}
+				}
 
 				case (METHOD_CALL): {
 					verifyMethodCall(curLine);
 					break;
 				}
-				throw Exeption()
+				throw Exception()
 			}
 		}
 	}
 
+	private void verifyValues(ArrayList<Variable> varArray) throws Exception{
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	void validateScope(ArrayList<Line> lineArray, boolean isMethod) throws Exception{
-
-		Stack<ScopeVars> variableStack = new Stack<>();
-		ScopeVars localVars;
-
-		if (isMethod) { // add method def vars
-			if (lineArray.get(lineArray.size()-2).type() != RETURN)
-				throw Exception;
-
-			variableStack.push(globalVars);
-			localVars = new ScopeVars();
-
-		} else
-			localVars = globalVars;
-
-		for (Line curLine : lineArray) {
-
-			LineType curLineType = curLine.type();
-
-			switch (curLineType) {
-
-				case (VAR_INIT): {
-
-					verifyValues(curLine.varArray());
-					localVars.add(curLine.varArray());
-				}
-
-				case (VAR_ASSIGN): {
-
-					verifyValues(curLine.varArray());
-					variableStack.push(localVars);
-					assignHelper(variableStack, curLine.varArray().get(0));
-					localVars = variableStack.pop();
-				}
-
-				case (BLOCK): {
-
-					if (!isMethod)
-						throw Exception;
-
-					else {
-						variableStack.push(localVars);
-						if (curLine.varArray().get(0) != null)
-							assignHelper(variableStack, curLine.varArray().get(0));
-						localVars = new ScopeVars();
-					}
-				}
-
-				case (CLOSE): {
-
-					if (!isMethod)
-						throw Exception;
-
-					else {
-						localVars = variableStack.pop();
-					}
-				}
-
-
-				case (METHOD_CALL): {
-
-					verifyMethodCall(curLine);
-				}
-
-			}
-		}
-	}
-
-	private void verifyValues(ArrayList<Variable> varArray) {
+		if (varArray == null)
+			return;
 
 		for (Variable var : varArray){
 
-			if (var.getValue() == null)
+			String value = var.value();
+
+			if (value == null)
+				if (var.isFinal)
+					throw Exception;
 				continue;
 
-			// run regex again
+			Matcher m = VarType.getMatcher(VarType.VAR).reset(value);
+			if (m.matches()) {
+				Variable refVar = new Variable(VarType.VAR, value, null, false);
+				verifyUse(refVar, false);
+				return;
+			}
 
-			if (VarType is variable)
-				//new variable
-				// check contains
+			m = VarType.getMatcher(var.type()).reset(value);
+			if (!m.matches())
+				throw Exception;
 		}
 	}
 
-	private void verifyAssign(Stack<ScopeVars> stack, Variable varToCheck) throws Exception {
+	private void verifyUse(Variable varToCheck, boolean assign) throws Exception {
 
-		int ans = 0;
 
-		for (ScopeVars scope : stack){
-			ans = scope.contains(varToCheck);
+		for (ScopeVars scope : theStack){
+			int ans = scope.contains(varToCheck);
 
-			if (ans == 0)
-				throw Exception;
+			if (ans == 0) {
+				if (assign)
+					throw Exception;
+				else
+					return;
+			}
 
 			else if (ans == 1)
-				break;
+				return;
 		}
-		if (ans != 1)
-			throw Exception;
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	void validateMethod(Method method, ArrayList<Line> allLines) {
-
-		Stack<ArrayList<Variable>> variableStack = new Stack<>();
-		variableStack.push(globalVarArray);
-
-		for (int i = method.getStart(); i <= method.getEnd(); i++) {
-
-			Line curLine = mainLines.get(i);
-			LineType lineType = myValidator.determineLineType(curLine);
-			ArrayList<Variable> localVariables = new ArrayList<>();
-
-			switch (lineType) {
-
-				case(INIT): {
-					localVariables.addAll(myValidator.createVariable(curLine);
-					continue;
-				}
-
-				case(ASSIGN): {
-					variableStack.push(localVariables);
-					myValidator.validateAssign(curLine, variableStack);
-					variableStack.pop();
-					continue;
-				}
-
-				case(BLOCK): {
-					myValidator.validateBlock(curLine);
-					variableStack.push(localVariables);
-					localVariables = new ArrayList<>();
-					continue;
-				}
-
-				case(CLOSE): {
-					myValidator.validateBlock(curLine);
-					localVariables = variableStack.pop();
-					continue;
-				}
-				case(METHOD_CALL): {
-					variableStack.push(localVariables);
-					myValidator.validateMethodCall(curLine, variableStack, methodArray);
-					variableStack.pop();
-					continue;
-				}
-			}
-			throw exception;
-
-		}
+		throw Exception;
 	}
 }
